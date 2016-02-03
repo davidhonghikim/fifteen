@@ -15,6 +15,11 @@
  * sleep and is simpler to use than nanosleep; `man usleep` for more.
  */
  
+/*
+check50 2015.fall.pset3.fifteen fifteen.c
+*/
+ 
+ 
 #define _XOPEN_SOURCE 500
 
 #include <cs50.h>
@@ -22,15 +27,13 @@
 #include <stdlib.h>
 #include <unistd.h>
 
-// board's minimal dimension
-#define MIN 3
+// constants
+#define DIM_MIN 3
+#define DIM_MAX 9
 
-// board's maximal dimension
-#define MAX 9
-
-// board, whereby board[i][j] represents row i and column j
-int board[MAX][MAX];
-int win_board[MAX][MAX];
+// board
+int board[DIM_MAX][DIM_MAX];
+int win_board[DIM_MAX][DIM_MAX];
 
 // board's dimension
 int d;
@@ -42,11 +45,10 @@ void init(void);
 void draw(void);
 bool move(int tile);
 bool won(void);
-void save(void);
 
 // blank position variables
-string blank_char = ":op";
-int blank = -1;
+string blank_char = " * ";
+int blank = 0;
 int bx = 0;
 int by = 0;
 // tile position variables
@@ -55,9 +57,6 @@ int ty = 0;
 
 int main(int argc, string argv[])
 {
-    // greet player
-    greet();
-
     // ensure proper usage
     if (argc != 2)
     {
@@ -67,12 +66,22 @@ int main(int argc, string argv[])
 
     // ensure valid dimensions
     d = atoi(argv[1]);
-    if (d < MIN || d > MAX)
+    if (d < DIM_MIN || d > DIM_MAX)
     {
         printf("Board must be between %i x %i and %i x %i, inclusive.\n",
-            MIN, MIN, MAX, MAX);
+            DIM_MIN, DIM_MIN, DIM_MAX, DIM_MAX);
         return 2;
     }
+    
+    // open log
+    FILE* file = fopen("log.txt", "w");
+    if (file == NULL)
+    {
+        return 3;
+    }
+    
+    // greet user with instructions
+    greet();
 
     // initialize the board
     init();
@@ -86,8 +95,20 @@ int main(int argc, string argv[])
         // draw the current state of the board
         draw();
 
-        // saves the current state of the board (for testing)
-        save();
+        // log the current state of the board (for testing)
+        for (int i = 0; i < d; i++)
+        {
+            for (int j = 0; j < d; j++)
+            {
+                fprintf(file, "%i", board[i][j]);
+                if (j < d - 1)
+                {
+                    fprintf(file, "|");
+                }
+            }
+            fprintf(file, "\n");
+        }
+        fflush(file);
 
         // check for win
         if (won())
@@ -99,6 +120,16 @@ int main(int argc, string argv[])
         // prompt for move
         printf("Tile to move: ");
         int tile = GetInt();
+        
+        // quit if user inputs 0 (for testing)
+        if (tile == 0)
+        {
+            break;
+        }
+        
+        // log move (for testing)
+        fprintf(file, "%i\n", tile);
+        fflush(file);
 
         // move if possible, else report illegality
         if (!move(tile))
@@ -110,8 +141,12 @@ int main(int argc, string argv[])
         // sleep for animation's sake
         usleep(50000);
     }
+    
+    // close log
+    fclose(file);
 
-    // that's all folks
+
+    // success
     return 0;
 }
 
@@ -175,11 +210,11 @@ void draw(void)
     printf("\n");
     for(int i=0; i<d; i++){
         for(int j=0; j<d; j++){
-            if(board[i][j]==-1){
+            if(board[i][j]==0){
                 printf("  %s", blank_char);
             } else if(board[i][j]>=10){
                 printf("   %d", board[i][j]);
-            } else{
+            } else if(board[i][j] >= 1 && board[i][j] <= 9){
                 printf("   0%d", board[i][j]);
             }
         }
@@ -208,7 +243,7 @@ bool move(int tile)
                     tx = j;
                     found_tile = true;
                     break;
-                }    
+                }
             }
         }
     }
@@ -218,19 +253,27 @@ bool move(int tile)
     
     // up
     if(board[ty-1][tx] == blank){
-        found_b_pos = true;
+        if(d>ty-1 && ty-1>=0){
+            found_b_pos = true;
+        }
     }
     //down
     if(board[ty+1][tx] == blank){
-        found_b_pos = true;
+        if(d>ty+1 && ty+1>=0){
+            found_b_pos = true;
+        }
     }
     // left
     if(board[ty][tx-1] == blank){
-        found_b_pos = true;
+        if(d>tx-1 && tx-1>=0){
+            found_b_pos = true;
+        }
     }
     //right
     if(board[ty][tx+1] == blank){
-        found_b_pos = true;
+        if(d>tx+1 && tx+1>=0){
+            found_b_pos = true;
+        }
     }
     
     //if tile is next to blank, switch pos
@@ -241,6 +284,11 @@ bool move(int tile)
         board[ty][tx] = blank;
         moved = true;
     }
+    else{
+	    found_b_pos = false;
+	return 0;
+    }
+	
     return moved;
 }
 
@@ -267,52 +315,4 @@ bool won(void)
     }
     won = winning;
     return won;
-}
-
-/**
- * Saves the current state of the board to disk (for testing).
- */
-void save(void)
-{
-    // log
-    const string log = "log.txt";
-
-    // delete existing log, if any, before first save
-    static bool saved = false;
-    if (!saved)
-    {
-        unlink(log);
-        saved = true;
-    }
-
-    // open log
-    FILE* p = fopen(log, "a");
-    if (p == NULL)
-    {
-        return;
-    }
-
-    // log board
-    fprintf(p, "{");
-    for (int i = 0; i < d; i++)
-    {
-        fprintf(p, "{");
-        for (int j = 0; j < d; j++)
-        {
-            fprintf(p, "%i", board[i][j]);
-            if (j < d - 1)
-            {
-                fprintf(p, ",");
-            }
-        }
-        fprintf(p, "}");
-        if (i < d - 1)
-        {
-            fprintf(p, ",");
-        }
-    }
-    fprintf(p, "}\n");
-
-    // close log
-    fclose(p);
 }
